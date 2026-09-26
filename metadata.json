@@ -1,0 +1,21 @@
+{
+    "KPackageStructure": "Plasma/Applet",
+    "KPlugin": {
+        "Authors": [
+            {
+                "Name": "Santiago Alé"
+            }
+        ],
+        "Category": "Online Services",
+        "Description": "Unofficial WhatsApp Web widget for KDE Plasma",
+        "Description[es]": "Widget no oficial de WhatsApp Web para KDE Plasma (escritorio o panel)",
+        "Icon": "internet-telephony",
+        "Id": "io.github.santiascode.wawidget",
+        "License": "MIT",
+        "Name": "WAWidget",
+        "Name[es]": "WAWidget",
+        "Version": "1.0.0",
+        "Website": "https://github.com/SantiAsCode/wawidget"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}
