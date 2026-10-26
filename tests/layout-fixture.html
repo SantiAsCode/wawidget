@@ -1,0 +1,20 @@
+<!doctype html>
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; }
+  #layout { display: flex; position: relative; width: 1000px; height: 600px; }
+  #background { position: absolute; inset: 0; display: flex; pointer-events: none; }
+  #paint-chats { width: 45%; height: 100%; border-left: 1px solid rgb(100, 100, 100); }
+  #paint-conversation { flex: 1; height: 100%; border-left: 1px solid rgb(100, 100, 100); }
+  #column { flex: 0 0 400px; border-right: 1px solid black; }
+  #wrapper { height: 100%; }
+  #side { height: 100%; }
+  #pane-side { height: 300px; }
+  #conversation { flex: 1 1 0; min-width: 0; }
+</style>
+<div id="layout">
+  <div id="background" aria-hidden="true"><div id="paint-chats"></div><div id="paint-conversation"></div></div>
+  <div id="column"><div id="wrapper"><div id="side"><div id="pane-side">Chat list</div></div></div></div>
+  <div id="conversation">Welcome</div>
+</div>
