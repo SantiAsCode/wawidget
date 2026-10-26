@@ -21,30 +21,90 @@ Widget **no oficial** de WhatsApp Web para **KDE Plasma 6**. Muestra WhatsApp We
 
 ## Requisitos
 
-- KDE Plasma 6 (API mínima 6.0)
-- Qt 6 WebEngine (`qt6-webengine`, `qml6-module-qtwebengine`)
-- Probado en Debian 13 con Plasma 6.3.6 y Qt 6.8.2
+- **KDE Plasma 6** (API mínima declarada: 6.0). No es compatible con Plasma 5.
+- **Qt WebEngine 6.8 o posterior**, incluido el módulo QML `QtWebEngine`, y los módulos QML de Qt/KDE que utiliza Plasma.
+- Conexión a Internet y WhatsApp en el teléfono para vincular la cuenta.
+
+WAWidget no es exclusivo de Debian: el mismo archivo `.plasmoid` puede instalarse en otras distribuciones con Plasma 6 y las dependencias anteriores, sin compilar. La compatibilidad depende de las versiones instaladas, no solo del nombre de la distribución.
+
+**Probado en Debian 13 con Plasma 6.3.6 y Qt 6.8.2.** Otras distribuciones todavía necesitan validación.
+
+> **Importante:** tener Plasma 6 no garantiza disponer de una versión suficiente de Qt WebEngine. El código actual utiliza la señal [`permissionRequested`](https://doc.qt.io/qt-6/qml-qtwebengine-webengineview.html#permissionRequested-signal), introducida en Qt 6.8. Con una versión anterior, el widget puede fallar al cargar.
 
 ## Instalación
 
-Desde KDE Store: *Añadir widgets* → *Obtener nuevos widgets* (cuando el widget esté publicado y sincronizado).
+### 1. Instalar las dependencias
 
-Desde el archivo `.plasmoid`:
+Sobre una instalación de Plasma 6, los paquetes habituales para añadir Qt WebEngine son:
+
+| Distribución | Comando |
+| --- | --- |
+| Debian / Kubuntu | `sudo apt install qml6-module-qtwebengine qml6-module-qtcore` |
+| Fedora KDE | `sudo dnf install qt6-qtwebengine` |
+| Arch Linux / EndeavourOS | `sudo pacman -S qt6-webengine` |
+
+Estos comandos no actualizan una distribución antigua a Plasma 6 ni garantizan Qt WebEngine 6.8 o posterior: comprueba la versión del paquete en tu gestor de software. En otras distribuciones, busca el paquete que proporciona el módulo QML `QtWebEngine` de Qt 6.
+
+También necesitas `kpackagetool6` para instalar desde terminal; normalmente está disponible con Plasma 6. No se necesitan paquetes de desarrollo ni un compilador.
+
+### 2. Instalar WAWidget
+
+Elige **una** de las siguientes alternativas. Instala el widget con tu usuario habitual, **sin `sudo`**.
+
+#### Desde un archivo `.plasmoid`
+
+Obtén un paquete de WAWidget o genera uno como se explica en [Empaquetado](#empaquetado). Por ejemplo, puedes compartir `dist/wawidget-1.1.5.plasmoid` con otro equipo; no incluye tus cuentas ni tus mensajes.
+
+Desde la carpeta donde hayas guardado el archivo:
 
 ```bash
 kpackagetool6 -t Plasma/Applet -i wawidget-1.1.5.plasmoid
 ```
 
-Desde el código fuente:
+También puedes instalarlo gráficamente:
+
+1. Abre **Añadir widgets** desde el escritorio o el panel.
+2. Busca **Instalar widget desde archivo local…** en el menú de gestión de widgets (la etiqueta puede variar según la versión de Plasma).
+3. Selecciona el archivo `.plasmoid`.
+
+#### Desde GitHub
+
+Con Git y las dependencias anteriores instaladas:
 
 ```bash
+git clone https://github.com/SantiAsCode/wawidget.git
+cd wawidget
 kpackagetool6 -t Plasma/Applet -i .
 ```
 
-Actualizar y desinstalar:
+#### Desde KDE Store
+
+Cuando el widget esté publicado y sincronizado, podrá instalarse desde **Añadir widgets → Obtener nuevos widgets**.
+
+### 3. Añadir el widget y vincular WhatsApp
+
+Busca **WAWidget** en **Añadir widgets**, añádelo al panel o al escritorio y escanea el QR desde **WhatsApp → Dispositivos vinculados** en tu teléfono. Cada usuario y equipo conserva su propia sesión.
+
+### Actualizar
+
+Si ya está instalado, usa `-u` en lugar de `-i`. Para actualizar desde un archivo:
 
 ```bash
+kpackagetool6 -t Plasma/Applet -u wawidget-1.1.5.plasmoid
+```
+
+O desde la carpeta del repositorio clonado:
+
+```bash
+git pull --ff-only
 kpackagetool6 -t Plasma/Applet -u .
+```
+
+Después, cierra sesión y vuelve a entrar, o reinicia Plasma, para recargar el widget. No hace falta reiniciar el sistema. **No quites y vuelvas a añadir el widget existente**, porque cambiaría su identificador y no reutilizaría automáticamente el perfil anterior.
+
+### Desinstalar
+
+```bash
 kpackagetool6 -t Plasma/Applet -r io.github.santiascode.wawidget
 ```
 
@@ -83,11 +143,13 @@ Clic derecho en el widget → *Configurar*:
 
 ## Empaquetado
 
+Desde la carpeta del repositorio, con Bash, Python 3 y `zip` instalados:
+
 ```bash
 ./package.sh
 ```
 
-Genera `dist/wawidget-<versión>.plasmoid`, el archivo que se sube a KDE Store o a una release de GitHub.
+Genera `dist/wawidget-<versión>.plasmoid`, que puedes compartir entre distribuciones compatibles o publicar en KDE Store o en una release de GitHub. El script reemplaza el contenido previo de `dist/`.
 
 ## Prueba de integración
 
@@ -108,4 +170,4 @@ MIT — ver [LICENSE](LICENSE).
 
 # WAWidget (English)
 
-**Unofficial** WhatsApp Web widget for **KDE Plasma 6**, using Qt WebEngine. Account tabs have isolated persistent profiles. Includes configurable background activity, native context menus, download progress and reversible compact-chat options. Existing widget profiles are preserved on upgrade. CSS compatibility still needs validation against the logged-in WhatsApp interface. Not affiliated with Meta/WhatsApp. Licensed under MIT.
+**Unofficial** WhatsApp Web widget for **KDE Plasma 6**, requiring **Qt WebEngine 6.8 or later** and its QML module. The same `.plasmoid` package can be installed across distributions meeting these requirements, without compilation; Plasma 5 is not supported. Tested on Debian 13 with Plasma 6.3.6 and Qt 6.8.2; other distributions still need validation. Install as your regular user with `kpackagetool6 -t Plasma/Applet -i wawidget-1.1.5.plasmoid`, then add WAWidget to your panel or desktop and scan the QR code. Account tabs have isolated persistent profiles. Includes configurable background activity, native context menus, download progress and reversible compact-chat options. Existing widget profiles are preserved on upgrade. CSS compatibility still needs validation against the logged-in WhatsApp interface. Not affiliated with Meta/WhatsApp. Licensed under MIT.
