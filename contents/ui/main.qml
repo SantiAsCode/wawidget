@@ -11,7 +11,15 @@ import org.kde.plasma.plasmoid
 PlasmoidItem {
     id: root
     Plasmoid.icon: Plasmoid.configuration.icon || "internet-telephony"
-    hideOnWindowDeactivate: !Plasmoid.configuration.pinned
+    hideOnWindowDeactivate: !Plasmoid.configuration.pinned && !attachmentDialogOpen
+    readonly property bool attachmentDialogOpen: {
+        for (var i = 0; i < sessions.count; ++i) {
+            var account = sessions.objectAt(i);
+            if (account && account.attachmentDialogOpen)
+                return true;
+        }
+        return false;
+    }
     switchWidth: Kirigami.Units.gridUnit * 16
     switchHeight: Kirigami.Units.gridUnit * 23
 
@@ -43,7 +51,7 @@ PlasmoidItem {
         saveAccounts();
     }
     function removeAccount(index) {
-        if (accounts.length < 2 || downloads.some(d => !d.done))
+        if (accounts.length < 2 || attachmentDialogOpen || downloads.some(d => !d.done))
             return;
         var list = accounts.slice();
         list.splice(index, 1);
@@ -285,7 +293,7 @@ PlasmoidItem {
                             }
                             QQC2.MenuItem {
                                 text: i18n("Quitar cuenta…")
-                                enabled: root.accounts.length > 1 && !root.downloads.some(d => !d.done)
+                                enabled: root.accounts.length > 1 && !root.attachmentDialogOpen && !root.downloads.some(d => !d.done)
                                 onTriggered: removeDialog.open()
                             }
                             QQC2.MenuSeparator {}

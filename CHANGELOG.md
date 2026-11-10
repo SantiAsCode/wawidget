@@ -2,6 +2,15 @@
 
 Formato basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/).
 
+## [1.1.6] - 2026-11-10
+
+### Corregido
+
+- Selector explícito de archivos para solicitudes de adjuntos de WebEngine, con selección simple/múltiple y cancelación. El popup permanece abierto sin modificar la chincheta mientras se eligen archivos.
+- Las rutas con espacios, acentos y caracteres `%` se entregan correctamente a WebEngine 6.8.
+- La gestión de permisos utiliza `grant()`, en lugar del inexistente `accept()`, para solicitudes como cámara y micrófono.
+- Pruebas aisladas con inputs de archivos reales, entrega de contenido a la página y restauración del comportamiento del popup al aceptar o cancelar.
+
 ## [1.1.5] - 2026-10-26
 
 ### Corregido

@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import ctypes
 
 ROOT = Path(__file__).resolve().parents[1]
 TOOLBAR_HARNESS = r'''
@@ -87,6 +88,7 @@ HARNESS = r'''
     property int testStep: 0
     property var firstTestView: null
     property string firstTestProfile: ""
+    property Item savedTestHost: null
     function checkTest(condition, message) {
         if (!condition) {
             console.error("WAWIDGET_TEST_FAIL: " + message);
@@ -111,7 +113,7 @@ HARNESS = r'''
                 root.checkTest(Plasmoid.configuration.keepAccountsActive, "background active by default");
                 // plasmawindowed overrides this property for its standalone window.
                 // Restore the applet's panel binding to exercise pin/unpin policy.
-                root.hideOnWindowDeactivate = Qt.binding(() => !Plasmoid.configuration.pinned);
+                root.hideOnWindowDeactivate = Qt.binding(() => !Plasmoid.configuration.pinned && !root.attachmentDialogOpen);
                 root.checkTest(!Plasmoid.configuration.pinned && root.hideOnWindowDeactivate, "popup closes on deactivation by default");
                 Plasmoid.configuration.pinned = true;
                 root.checkTest(!root.hideOnWindowDeactivate, "pin prevents closing on deactivation");
@@ -132,9 +134,10 @@ HARNESS = r'''
                 console.log("WAWIDGET_CAPTURE");
                 Plasmoid.configuration.pinned = false;
                 root.checkTest(root.hideOnWindowDeactivate, "unpin restores closing on deactivation");
-            } else if (root.testStep === 3) {
-                root.selectAccount(0);
-                root.viewHost = null;
+             } else if (root.testStep === 3) {
+                 root.selectAccount(0);
+                 root.savedTestHost = root.viewHost;
+                 root.viewHost = null;
             } else if (root.testStep === 4) {
                 root.checkTest(root.firstTestView === sessions.objectAt(0), "closing popup retains view");
                 root.checkTest(root.firstTestView.view.lifecycleState === WebEngineView.LifecycleState.Active, "hidden account stays active");
@@ -173,7 +176,9 @@ HARNESS = r'''
                             var otherProfile = root.accounts[1].storageName;
                             root.removeAccount(0);
                             root.checkTest(root.accounts[0].storageName === otherProfile && sessions.objectAt(0) === otherView, "removing first account preserves remaining profile and view");
-                            console.log("WAWIDGET_TEST_PASS");
+                             root.uploadTestView = otherView;
+                             root.viewHost = root.savedTestHost;
+                             uploadTimer.start();
                         });
                     });
                 });
@@ -183,6 +188,129 @@ HARNESS = r'''
         }
     }
 '''
+
+UPLOAD_HARNESS = r'''
+    property var uploadTestView: null
+    property int uploadStep: 0
+    property bool uploadCaptured: false
+    Timer {
+        id: uploadTimer
+        interval: 700
+        repeat: true
+        onTriggered: {
+            var account = root.uploadTestView;
+            if (account.view.loading || account.view.loadProgress < 100)
+                return;
+            switch (root.uploadStep++) {
+            case 0:
+                account.view.runJavaScript("document.body.innerHTML='<input id=upload type=file>';window.uploadResult=null;document.getElementById('upload').onchange=async function(){window.uploadResult=await this.files[0].text();};document.getElementById('upload').focus();", function() {
+                    account.view.forceActiveFocus(Qt.OtherFocusReason);
+                    console.log("WAWIDGET_UPLOAD_KEY");
+                });
+                break;
+            case 1:
+                if (!root.uploadCaptured) {
+                    root.uploadCaptured = true;
+                    root.uploadStep--;
+                    console.log("WAWIDGET_CAPTURE_ATTACHMENT");
+                    return;
+                }
+                root.checkTest(account.attachmentDialogOpen && account.testPicker.visible, "real file input opens the attachment picker");
+                root.checkTest(root.attachmentDialogOpen && !root.hideOnWindowDeactivate && !Plasmoid.configuration.pinned, "file picker holds popup open without changing pin preference");
+                Plasmoid.configuration.keepAccountsActive = false;
+                root.viewHost = null;
+                root.checkTest(account.view.lifecycleState === WebEngineView.LifecycleState.Active, "file picker prevents hidden view suspension");
+                root.viewHost = root.savedTestHost;
+                root.checkTest(account.testPicker.fileMode === 0, "single-file input uses single selection");
+                account.testPicker.currentFiles = [UPLOAD_FILE_ONE];
+                // Simulate the chooser's completion, not its platform-specific UI.
+                account.testPicker.accepted();
+                account.testPicker.close();
+                break;
+            case 2:
+                root.checkTest(!account.attachmentDialogOpen && root.hideOnWindowDeactivate, "accept releases request and restores popup policy");
+                Plasmoid.configuration.keepAccountsActive = true;
+                root.viewHost = root.savedTestHost;
+                account.view.runJavaScript("window.uploadResult", function(result) {
+                    root.checkTest(result === "WAWidget upload fixture", "selected file contents reach the web page");
+                });
+                break;
+            case 3:
+                account.view.runJavaScript("var input=document.getElementById('upload');input.value='';input.multiple=true;input.onchange=function(){window.uploadResult=Array.from(this.files).map(f=>f.name).join('|');};input.focus();", function() {
+                    account.view.forceActiveFocus(Qt.OtherFocusReason);
+                    console.log("WAWIDGET_UPLOAD_KEY");
+                });
+                break;
+            case 4:
+                root.checkTest(account.attachmentDialogOpen && account.testPicker.visible && account.testPicker.fileMode === 1, "multiple-file input opens multiple selection");
+                account.testPicker.currentFiles = [UPLOAD_FILE_ONE, UPLOAD_FILE_TWO];
+                account.testPicker.accepted();
+                account.testPicker.close();
+                break;
+            case 5:
+                account.view.runJavaScript("window.uploadResult", function(result) {
+                    root.checkTest(result === "adjunto ñ %.txt|segundo.txt", "multiple file URLs preserve unicode and percent characters");
+                });
+                break;
+            case 6:
+                account.view.runJavaScript("var input=document.getElementById('upload');input.value='';input.focus();", function() {
+                    account.view.forceActiveFocus(Qt.OtherFocusReason);
+                    console.log("WAWIDGET_UPLOAD_KEY");
+                });
+                break;
+            case 7:
+                root.checkTest(account.attachmentDialogOpen && account.testPicker.visible, "picker reopens after accepting");
+                account.testPicker.reject();
+                break;
+            case 8:
+                root.checkTest(!account.attachmentDialogOpen && !root.attachmentDialogOpen && root.hideOnWindowDeactivate, "cancel releases request and restores popup policy");
+                account.view.runJavaScript("document.getElementById('upload').files.length", function(count) {
+                    root.checkTest(count === 0, "cancelling attaches no files");
+                    console.log("WAWIDGET_TEST_PASS");
+                });
+                stop();
+                break;
+            }
+        }
+    }
+'''
+
+
+def press_upload_button():
+    """Send Space only to the isolated X11 test window; never move global focus."""
+    tree = subprocess.check_output(["xwininfo", "-root", "-tree"], text=True)
+    window = re.search(r'(0x[0-9a-f]+) "WAWidget[^"\n]*"', tree)
+    assert window, "Isolated test window not found"
+    x11 = ctypes.CDLL("libX11.so.6")
+    x11.XOpenDisplay.restype = ctypes.c_void_p
+    display = x11.XOpenDisplay(None)
+    assert display, "Attachment integration test requires X11"
+    x11.XKeysymToKeycode.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
+    x11.XSendEvent.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_long, ctypes.c_void_p]
+    x11.XFlush.argtypes = [ctypes.c_void_p]
+    x11.XCloseDisplay.argtypes = [ctypes.c_void_p]
+
+    class KeyEvent(ctypes.Structure):
+        _fields_ = [("type", ctypes.c_int), ("serial", ctypes.c_ulong),
+                    ("send_event", ctypes.c_int), ("display", ctypes.c_void_p),
+                    ("window", ctypes.c_ulong), ("root", ctypes.c_ulong),
+                    ("subwindow", ctypes.c_ulong), ("time", ctypes.c_ulong),
+                    ("x", ctypes.c_int), ("y", ctypes.c_int),
+                    ("x_root", ctypes.c_int), ("y_root", ctypes.c_int),
+                    ("state", ctypes.c_uint), ("keycode", ctypes.c_uint),
+                    ("same_screen", ctypes.c_int)]
+
+    buffer = (ctypes.c_long * 24)()
+    event = KeyEvent.from_buffer(buffer)
+    event.display = display
+    event.window = int(window[1], 16)
+    event.keycode = x11.XKeysymToKeycode(display, 0x20)
+    event.same_screen = 1
+    for event_type, mask in [(2, 1), (3, 2)]:
+        event.type = event_type
+        x11.XSendEvent(display, event.window, 0, mask, ctypes.byref(buffer))
+    x11.XFlush(display)
+    x11.XCloseDisplay(display)
 
 
 def main():
@@ -195,12 +323,21 @@ def main():
         source = main_qml.read_text()
         source = source.replace("id: popup", "id: popup\n" + TOOLBAR_HARNESS, 1)
         harness = HARNESS.replace("LAYOUT_FIXTURE_JSON", json.dumps((ROOT / "tests/layout-fixture.html").read_text()))
-        main_qml.write_text(source[:source.rfind("}")] + harness + "}\n")
+        upload_one = base / "adjunto ñ %.txt"
+        upload_two = base / "segundo.txt"
+        upload_one.write_text("WAWidget upload fixture")
+        upload_two.write_text("Second upload fixture")
+        upload_harness = UPLOAD_HARNESS.replace("UPLOAD_FILE_ONE", json.dumps(upload_one.as_uri())).replace("UPLOAD_FILE_TWO", json.dumps(upload_two.as_uri()))
+        main_qml.write_text(source[:source.rfind("}")] + harness + upload_harness + "}\n")
         account_qml = package / "contents/ui/AccountView.qml"
         source = account_qml.read_text().replace('url: "https://web.whatsapp.com"', 'url: "data:text/html,<html><body>WAWidget isolated test</body></html>"')
         target = base / "downloads"
         target.mkdir()
         source = source.replace("id: waProfile", "id: waProfile\n        downloadPath: " + json.dumps(str(target)))
+        source = source.replace("id: account", "id: account\n    property alias testPicker: attachmentDialog", 1)
+        # Deterministic picker automation: no portal service or user's folders.
+        picker_options = "" if os.environ.get("WAWIDGET_NATIVE_PICKER") else '\n        options: Dialogs.FileDialog.DontUseNativeDialog'
+        source = source.replace('objectName: "attachmentFileDialog"', 'objectName: "attachmentFileDialog"\n        currentFolder: ' + json.dumps(base.as_uri()) + picker_options)
         account_qml.write_text(source)
         # Only the isolated fixture bypasses the production WhatsApp-origin guard.
         style_js = package / "contents/ui/ChatStyle.js"
@@ -216,11 +353,15 @@ def main():
         try:
             for line in process.stdout:
                 lines.append(line)
+                if "WAWIDGET_UPLOAD_KEY" in line:
+                    press_upload_button()
                 if "WAWIDGET_CAPTURE" in line and shutil.which("xwininfo") and shutil.which("import"):
                     tree = subprocess.check_output(["xwininfo", "-root", "-tree"], text=True)
                     window = re.search(r'(0x[0-9a-f]+) "WAWidget[^"\n]*"', tree)
+                    if "WAWIDGET_CAPTURE_ATTACHMENT" in line:
+                        window = re.search(r'(0x[0-9a-f]+) "Seleccionar archivos para adjuntar[^"\n]*"', tree) or window
                     if window:
-                        capture = "wawidget-toolbar-visible.png" if "WAWIDGET_CAPTURE_TOOLBAR" in line else "wawidget-window.png"
+                        capture = "wawidget-attachment.png" if "WAWIDGET_CAPTURE_ATTACHMENT" in line else "wawidget-toolbar-visible.png" if "WAWIDGET_CAPTURE_TOOLBAR" in line else "wawidget-window.png"
                         subprocess.run(["import", "-window", window[1], "/tmp/opencode/" + capture], check=True)
                 if "WAWIDGET_TEST_PASS" in line or "WAWIDGET_TEST_FAIL" in line:
                     break

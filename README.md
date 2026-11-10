@@ -13,6 +13,7 @@ Widget **no oficial** de WhatsApp Web para **KDE Plasma 6**. Muestra WhatsApp We
 - Chincheta configurable para mantener abierto el popup al cambiar de aplicación o tomar capturas.
 - Barra superior autoocultable: aparece al acercar el cursor al borde superior o pulsar **F6**, haciendo espacio sin tapar los controles de WhatsApp.
 - Menú contextual para copiar texto, enlaces e imágenes.
+- Selector de archivos para adjuntos, con selección múltiple y cancelación; mantiene abierto el popup mientras eliges, sin cambiar la chincheta.
 - Descargas con progreso, cancelación, errores y botón para abrir su carpeta.
 - Vista configurable: columna de chats angosta, listado compacto y botón para plegar/desplegar chats.
 - User-Agent editable desde la configuración (WhatsApp Web exige una versión reciente de Chrome; por defecto se envía una actual).
@@ -22,7 +23,7 @@ Widget **no oficial** de WhatsApp Web para **KDE Plasma 6**. Muestra WhatsApp We
 ## Requisitos
 
 - **KDE Plasma 6** (API mínima declarada: 6.0). No es compatible con Plasma 5.
-- **Qt WebEngine 6.8 o posterior**, incluido el módulo QML `QtWebEngine`, y los módulos QML de Qt/KDE que utiliza Plasma.
+- **Qt WebEngine 6.8 o posterior**, incluidos los módulos QML `QtWebEngine`, `QtCore` y `QtQuick.Dialogs`, y los módulos QML de Qt/KDE que utiliza Plasma.
 - Conexión a Internet y WhatsApp en el teléfono para vincular la cuenta.
 
 WAWidget no es exclusivo de Debian: el mismo archivo `.plasmoid` puede instalarse en otras distribuciones con Plasma 6 y las dependencias anteriores, sin compilar. La compatibilidad depende de las versiones instaladas, no solo del nombre de la distribución.
@@ -39,7 +40,7 @@ Sobre una instalación de Plasma 6, los paquetes habituales para añadir Qt WebE
 
 | Distribución | Comando |
 | --- | --- |
-| Debian / Kubuntu | `sudo apt install qml6-module-qtwebengine qml6-module-qtcore` |
+| Debian / Kubuntu | `sudo apt install qml6-module-qtwebengine qml6-module-qtcore qml6-module-qtquick-dialogs` |
 | Fedora KDE | `sudo dnf install qt6-qtwebengine` |
 | Arch Linux / EndeavourOS | `sudo pacman -S qt6-webengine` |
 
@@ -53,12 +54,12 @@ Elige **una** de las siguientes alternativas. Instala el widget con tu usuario h
 
 #### Desde un archivo `.plasmoid`
 
-Obtén un paquete de WAWidget o genera uno como se explica en [Empaquetado](#empaquetado). Por ejemplo, puedes compartir `dist/wawidget-1.1.5.plasmoid` con otro equipo; no incluye tus cuentas ni tus mensajes.
+Obtén un paquete de WAWidget o genera uno como se explica en [Empaquetado](#empaquetado). Por ejemplo, puedes compartir `dist/wawidget-1.1.6.plasmoid` con otro equipo; no incluye tus cuentas ni tus mensajes.
 
 Desde la carpeta donde hayas guardado el archivo:
 
 ```bash
-kpackagetool6 -t Plasma/Applet -i wawidget-1.1.5.plasmoid
+kpackagetool6 -t Plasma/Applet -i wawidget-1.1.6.plasmoid
 ```
 
 También puedes instalarlo gráficamente:
@@ -90,7 +91,7 @@ Busca **WAWidget** en **Añadir widgets**, añádelo al panel o al escritorio y 
 Si ya está instalado, usa `-u` en lugar de `-i`. Para actualizar desde un archivo:
 
 ```bash
-kpackagetool6 -t Plasma/Applet -u wawidget-1.1.5.plasmoid
+kpackagetool6 -t Plasma/Applet -u wawidget-1.1.6.plasmoid
 ```
 
 O desde la carpeta del repositorio clonado:
@@ -140,6 +141,7 @@ Clic derecho en el widget → *Configurar*:
 - La lista de descargas corresponde a la sesión actual del widget; no es un historial persistente.
 - Los ajustes CSS dependen de los selectores actuales de WhatsApp Web (`#side`, `#pane-side`, `#main`). La columna angosta detecta el contenedor flex completo, adapta el panel contiguo y oculta los bordes decorativos desalineados de capas de fondo independientes, conservando el separador en el límite real. Podrían necesitar ajustes si WhatsApp cambia su interfaz. El plegado solo se aplica cuando existe el panel de conversación.
 - Llamadas de voz/video pueden no funcionar según la versión de Qt WebEngine.
+- El selector de adjuntos ofrece todos los tipos de archivo; WhatsApp valida cuáles admite. Las opciones internas de WhatsApp (contactos, encuestas, stickers o cámara) no se sustituyen por el selector ni quedan verificadas por las pruebas locales.
 
 ## Empaquetado
 
@@ -153,14 +155,14 @@ Genera `dist/wawidget-<versión>.plasmoid`, que puedes compartir entre distribuc
 
 ## Prueba de integración
 
-En una sesión gráfica con `plasmawindowed` disponible:
+En una sesión X11 con `plasmawindowed`, `xwininfo` y `libX11` disponibles:
 
 ```bash
 node tests/chat-style.test.cjs
 python3 tests/plasma-smoke.py
 ```
 
-La prueba crea un paquete y directorios XDG temporales bajo `/tmp/opencode`, utiliza una página local sin cuentas reales y comprueba la barra autoocultable (estados simulados sin mover el cursor), perfiles aislados, conservación de vistas, suspensión y una descarga `blob:` cuyo contenido se verifica. No prueba los selectores contra WhatsApp real ni inicia sesión. Si están disponibles `xwininfo` e ImageMagick, guarda una captura de la ventana de prueba en `/tmp/opencode/wawidget-window.png`.
+La prueba crea un paquete y directorios XDG temporales bajo `/tmp/opencode`, utiliza una página local sin cuentas reales y comprueba la barra autoocultable (estados simulados sin mover el cursor), perfiles aislados, conservación de vistas, suspensión y una descarga `blob:` cuyo contenido se verifica. Abre inputs de archivos reales mediante eventos de teclado dirigidos solo a la ventana de prueba, sin cambiar el foco global; simula la selección completada para verificar archivos simples/múltiples y cancelación. Por defecto usa el diálogo QML; con `WAWIDGET_NATIVE_PICKER=1 python3 tests/plasma-smoke.py` también comprueba la apertura del diálogo nativo. No prueba WhatsApp real ni inicia sesión. Si está disponible ImageMagick, guarda capturas bajo `/tmp/opencode`, incluida `wawidget-attachment.png`.
 
 ## Licencia
 
@@ -170,4 +172,4 @@ MIT — ver [LICENSE](LICENSE).
 
 # WAWidget (English)
 
-**Unofficial** WhatsApp Web widget for **KDE Plasma 6**, requiring **Qt WebEngine 6.8 or later** and its QML module. The same `.plasmoid` package can be installed across distributions meeting these requirements, without compilation; Plasma 5 is not supported. Tested on Debian 13 with Plasma 6.3.6 and Qt 6.8.2; other distributions still need validation. Install as your regular user with `kpackagetool6 -t Plasma/Applet -i wawidget-1.1.5.plasmoid`, then add WAWidget to your panel or desktop and scan the QR code. Account tabs have isolated persistent profiles. Includes configurable background activity, native context menus, download progress and reversible compact-chat options. Existing widget profiles are preserved on upgrade. CSS compatibility still needs validation against the logged-in WhatsApp interface. Not affiliated with Meta/WhatsApp. Licensed under MIT.
+**Unofficial** WhatsApp Web widget for **KDE Plasma 6**, requiring **Qt WebEngine 6.8 or later**, its QML module and `QtQuick.Dialogs`. The same `.plasmoid` package can be installed across distributions meeting these requirements, without compilation; Plasma 5 is not supported. Tested on Debian 13 with Plasma 6.3.6 and Qt 6.8.2; other distributions still need validation. Install as your regular user with `kpackagetool6 -t Plasma/Applet -i wawidget-1.1.6.plasmoid`, then add WAWidget to your panel or desktop and scan the QR code. Account tabs have isolated persistent profiles. Includes configurable background activity, native context menus, attachment file selection, download progress and reversible compact-chat options. Existing widget profiles are preserved on upgrade. Compatibility still needs validation against the logged-in WhatsApp interface. Not affiliated with Meta/WhatsApp. Licensed under MIT.
